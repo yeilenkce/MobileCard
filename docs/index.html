@@ -271,7 +271,7 @@
         <div class="actions">
           <button id="sendToSup" class="btn btn-primary" type="button">이 QR을 감독관 단말에서 검증하기</button>
         </div>
-        <p class="hint">같은 기기에서 시연할 때의 바로가기입니다. 실제로는 감독관 단말의 카메라가 종이 수험표를 스캔합니다.</p>
+        <p class="hint">같은 기기에서 시연할 때의 바로가기입니다. 실제로는 감독관 단말의 카메라가 종이 수험표를 스캔합니다. 이 QR은 이 브라우저의 발급기관 키로 서명되어 있어서, 다른 기기에서 검증하려면 감독관 단말의 "시험장 패키지 옮기기"로 패키지를 먼저 옮겨야 합니다.</p>
       </div>
     </div>
   </section>
@@ -296,7 +296,7 @@
 
     <div id="supEmpty" class="empty" hidden>
       <h2>이 단말에는 시험장 검증 패키지가 없습니다</h2>
-      <p class="lead">응시자 앱에서 시험패스를 발급하면 해당 시험장의 검증 패키지가 이 브라우저에 함께 만들어집니다.</p>
+      <p class="lead">응시자 앱에서 시험패스를 발급하면 해당 시험장의 검증 패키지가 이 브라우저에 함께 만들어집니다. 다른 기기에서 발급한 시험패스를 검증하려면 아래 '시험장 패키지 옮기기'에서 그 기기의 패키지를 가져오세요.</p>
       <button id="supEmptyGo" class="btn btn-primary" type="button">응시자 앱으로 가기</button>
       <p id="wipeEcho" class="msg msg-ok" role="status" hidden></p>
     </div>
@@ -391,6 +391,7 @@
             </div>
             <div id="after" class="actions" hidden>
               <button id="btnNext" class="btn btn-primary" type="button">다음 응시자 스캔</button>
+              <button id="btnToTransfer" class="btn btn-quiet" type="button" hidden>패키지 가져오기로 이동</button>
             </div>
           </div>
         </section>

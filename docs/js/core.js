@@ -58,11 +58,12 @@
   };
 
   /* ---------- QR 페이로드 (이진 직렬화) ----------
-   * ver(1) | examIdLen(1) examId | examDate yyyymmdd(u32) | candLen(1) candNo |
+   * ver(1) | kid(4) | examIdLen(1) examId | examDate yyyymmdd(u32) | candLen(1) candNo |
    * tokenId(12) | issuedAt(u32 sec) | expiresAt(u32 sec)
-   * 이름·생년월일·사진 등 개인정보는 들어가지 않는다.
+   * kid 는 발급기관 공개키 SHA-256 의 앞 4바이트(키 ID)다. 서명 대상에 포함되며, 검증 키가 서로 다를 때
+   * 원인을 알려 주는 용도로만 쓴다. 이름·생년월일·사진 등 개인정보는 들어가지 않는다.
    */
-  SP.VERSION = 1;
+  SP.VERSION = 2;
   SP.PREFIX = 'SP1';
 
   function ymdToInt(ymd) {
@@ -80,9 +81,11 @@
     var tid = SP.b64u.dec(p.tokenId);
     if (exam.length < 1 || exam.length > 32 || cand.length < 1 || cand.length > 32) throw new Error('필드 길이 오류');
     if (tid.length !== 12) throw new Error('토큰ID는 12바이트여야 합니다');
-    var buf = new Uint8Array(1 + 1 + exam.length + 4 + 1 + cand.length + 12 + 4 + 4);
+    if (!/^[0-9a-f]{8}$/.test(p.kid || '')) throw new Error('키 ID 형식 오류');
+    var buf = new Uint8Array(1 + 4 + 1 + exam.length + 4 + 1 + cand.length + 12 + 4 + 4);
     var dv = new DataView(buf.buffer), o = 0;
     buf[o++] = p.version;
+    for (var k = 0; k < 4; k++) buf[o++] = parseInt(p.kid.substr(k * 2, 2), 16);
     buf[o++] = exam.length; buf.set(exam, o); o += exam.length;
     dv.setUint32(o, ymdToInt(p.examDate)); o += 4;
     buf[o++] = cand.length; buf.set(cand, o); o += cand.length;
@@ -95,9 +98,11 @@
   SP.decodePayload = function (buf) {
     var dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength), o = 0;
     function need(n) { if (o + n > buf.length) throw new Error('페이로드가 짧습니다'); }
-    need(2);
+    need(6);
     var version = buf[o++];
     if (version !== SP.VERSION) throw new Error('지원하지 않는 버전 ' + version);
+    var kid = '';
+    for (var k = 0; k < 4; k++) { var bt = buf[o++]; kid += (bt < 16 ? '0' : '') + bt.toString(16); }
     var el = buf[o++]; need(el);
     var examId = td.decode(buf.subarray(o, o + el)); o += el;
     need(5);
@@ -109,7 +114,7 @@
     var issuedAt = dv.getUint32(o); o += 4;
     var expiresAt = dv.getUint32(o); o += 4;
     if (o !== buf.length) throw new Error('페이로드 뒤에 불필요한 바이트가 있습니다');
-    return { version: version, examId: examId, examDate: examDate, candNo: candNo, tokenId: tokenId, issuedAt: issuedAt, expiresAt: expiresAt };
+    return { version: version, kid: kid, examId: examId, examDate: examDate, candNo: candNo, tokenId: tokenId, issuedAt: issuedAt, expiresAt: expiresAt };
   };
 
   /* ---------- QR 문자열: SP1.<payload>.<signature> ---------- */
@@ -145,6 +150,13 @@
     for (var i = 0; i < 6; i++) s += (h[i] < 16 ? '0' : '') + h[i].toString(16);
     return s.replace(/(.{4})/g, '$1 ').trim();
   };
+  // 발급기관 공개키의 키 ID: SHA-256 의 앞 4바이트(16진수 8자)
+  SP.keyId = async function (raw) {
+    var h = new Uint8Array(await subtle.digest('SHA-256', raw)), s = '';
+    for (var i = 0; i < 4; i++) s += (h[i] < 16 ? '0' : '') + h[i].toString(16);
+    return s;
+  };
+  SP.fmtKid = function (kid) { return kid.replace(/(.{4})/, '$1 '); };
   SP.randomTokenId = function () {
     return SP.b64u.enc(g.crypto.getRandomValues(new Uint8Array(12)));
   };
@@ -185,7 +197,7 @@
   };
 
   /* ---------- 4단계 검증 ----------
-   * ctx = { pub: CryptoKey, examId, examDate, now(): ms, isUsed(tokenId): Promise<record|null> }
+   * ctx = { pub: CryptoKey, kid: 키 ID(선택), examId, examDate, now(): ms, isUsed(tokenId): Promise<record|null> }
    * 한 단계라도 실패하면 이후 단계는 'skip'. 서명이 맞기 전에는 페이로드를 신뢰하지 않으므로
    * result.payload 는 1단계를 통과했을 때만 채워진다.
    */
@@ -206,7 +218,16 @@
         var valid = false;
         try { valid = await subtle.verify(ECDSA_ALG, ctx.pub, parsed.sig, parsed.payloadBytes); }
         catch (e) { return { ok: false, code: 'SIG_ERROR', msg: '서명을 검증하지 못했습니다' }; }
-        if (!valid) return { ok: false, code: 'SIG_INVALID', msg: '서명이 맞지 않습니다. 발급기관이 만든 QR이 아니거나 내용이 바뀌었습니다.' };
+        if (!valid) {
+          // 서명이 맞지 않으면 페이로드를 신뢰할 수 없다. 키 ID 는 원인 안내에만 쓰고 판정에는 쓰지 않는다.
+          var claimed = null;
+          try { claimed = SP.decodePayload(parsed.payloadBytes).kid; } catch (e) { claimed = null; }
+          if (claimed && ctx.kid && claimed !== ctx.kid) {
+            res.foreignKid = claimed;
+            return { ok: false, code: 'KEY_MISMATCH', msg: '다른 발급기관 키(키 ID ' + SP.fmtKid(claimed) + ')로 서명된 QR입니다. 이 단말의 패키지는 키 ID ' + SP.fmtKid(ctx.kid) + ' 를 씁니다. 다른 기기에서 발급한 QR이라면 그 기기의 시험장 패키지를 가져와야 합니다.' };
+          }
+          return { ok: false, code: 'SIG_INVALID', msg: '서명이 맞지 않습니다. 같은 발급기관 키로 서명했는데 내용이 바뀌었거나, 발급기관이 만든 QR이 아닙니다.' };
+        }
         try { payload = SP.decodePayload(parsed.payloadBytes); }
         catch (e) { return { ok: false, code: 'PAYLOAD', msg: '서명은 맞지만 내용을 읽을 수 없습니다: ' + e.message }; }
         return { ok: true, code: 'OK', msg: '발급기관 공개키로 서명이 확인되었습니다.' };
