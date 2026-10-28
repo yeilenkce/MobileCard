@@ -122,6 +122,11 @@
     return SP.PREFIX + '.' + SP.b64u.enc(payloadBytes) + '.' + SP.b64u.enc(sig);
   };
 
+  // 저장되어 있던 QR 이 지금 형식(버전)으로 읽히는지. 이전 버전에서 발급한 시험패스를 걸러내는 데 쓴다.
+  SP.isCurrentQR = function (text) {
+    try { SP.decodePayload(SP.parseQR(text).payloadBytes); return true; } catch (e) { return false; }
+  };
+
   SP.parseQR = function (text) {
     var t = String(text || '').replace(/\s+/g, '');
     var m = /^SP1\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/.exec(t);

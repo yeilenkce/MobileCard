@@ -30,9 +30,16 @@
   };
 
   // opts.ticketId: 방금 발급한 시험패스를 수험표에 바로 보여 준다.
+  // 한 화면이 저장된 데이터 때문에 실패해도 다른 화면까지 멈추지 않게 따로 감싼다.
+  function guard(label, p) {
+    return p.catch(function (e) {
+      if (g.console) g.console.error(label, e);
+      ui.toast(label + ' 화면을 불러오지 못했습니다');
+    });
+  }
   app.refresh = async function (opts) {
-    await SP.ticket.refresh(opts && opts.ticketId);
-    await SP.supervisor.refresh();
+    await guard('수험표', SP.ticket.refresh(opts && opts.ticketId));
+    await guard('감독관 단말', SP.supervisor.refresh());
   };
 
   app.init = async function () {
