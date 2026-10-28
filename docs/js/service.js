@@ -45,6 +45,10 @@
     var pkgId = svc.pkgId(exam.id, opts.examDate);
 
     var pkg = await SP.db.get('packages', pkgId);
+    if (pkg && pkg.imported) {
+      // 다른 기기가 만든 패키지는 그 기기의 발급기관 키와 복호화 전용 키를 쓴다. 여기서 새로 서명하면 검증이 안 된다.
+      throw new Error('이 기기에는 다른 기기에서 가져온 같은 시험·시험일의 패키지가 있어 여기서는 발급할 수 없습니다. 감독관 단말 맨 아래 "시험 종료"에서 패키지를 파기한 뒤 발급하세요.');
+    }
     if (!pkg) {
       pkg = {
         pkgId: pkgId, examId: exam.id, examDate: opts.examDate,
@@ -148,7 +152,9 @@
     return { json: JSON.stringify(file), code: SP.b64u.enc(raw), count: entries.length };
   };
 
-  svc.importPackage = async function (jsonText, code) {
+  // opts.confirmReplace({ count }): 이 기기가 같은 시험·시험일의 패키지를 직접 만들어 둔 경우, 바꿔도 되는지 묻는다.
+  // 콜백이 없거나 false 를 돌려주면 가져오지 않는다.
+  svc.importPackage = async function (jsonText, code, opts) {
     var f;
     try { f = JSON.parse(jsonText); } catch (e) { throw new Error('패키지 파일을 읽을 수 없습니다'); }
     if (!f || f.format !== 'siheompass-package' || f.v !== 1 || !Array.isArray(f.entries)) throw new Error('시험패스 검증 패키지 파일이 아닙니다');
@@ -166,6 +172,11 @@
     }
     // 같은 시험의 이전 항목은 이 키로 풀 수 없으므로 지우고 새로 받은 항목으로 바꾼다.
     var old = (await SP.db.all('entries')).filter(function (e) { return e.pkgId === f.pkgId; });
+    var existing = await SP.db.get('packages', f.pkgId);
+    if (existing && !existing.imported && old.length) {
+      var okReplace = opts && opts.confirmReplace ? await opts.confirmReplace({ count: old.length }) : false;
+      if (!okReplace) throw new Error('가져오기를 취소했습니다. 이 기기의 패키지는 그대로입니다.');
+    }
     for (var i = 0; i < old.length; i++) await SP.db.del('entries', old[i].tokenId);
     for (var j = 0; j < entries.length; j++) await SP.db.put('entries', entries[j]);
     var meta = { pkgId: f.pkgId, examId: f.examId, examDate: f.examDate, issuerPub: pub, key: key, createdAt: Date.now(), seq: entries.length, imported: true };

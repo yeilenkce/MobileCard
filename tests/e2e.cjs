@@ -173,8 +173,16 @@ async function nextRun(p) { if (await p.isVisible('#btnNext')) await p.click('#b
   await b.fill('#xferIn', 'x'.repeat(43));
   await b.click('#xferImport');
   await b.waitForFunction(() => document.querySelector('#xferMsg').textContent.includes('맞지 않습니다'));
+  // B 는 같은 시험·시험일의 패키지를 직접 만들어 둔 상태라, 가져오기 전에 확인을 받는다. 취소하면 그대로 둔다.
   await b.fill('#xferIn', code);
   await b.click('#xferImport');
+  await b.waitForSelector('#dlg[open]');
+  await b.click('#dlgCancel');
+  await b.waitForFunction(() => document.querySelector('#xferMsg').textContent.includes('취소했습니다'));
+  await b.click('#xferImport');
+  await b.waitForSelector('#dlg[open]');
+  await b.click('#dlgOk');
+  await b.waitForFunction(() => document.querySelector('#xferMsg').textContent.includes('가져왔습니다'));
   await b.waitForSelector('#supBody:not([hidden])');
   await pasteVerify(b, qr4);
   assert.deepEqual(await steps(b), ['pass', 'pass', 'pass', 'pass']);
@@ -185,6 +193,16 @@ async function nextRun(p) { if (await p.isVisible('#btnNext')) await p.click('#b
   await b.click('#btnNext');
   await pasteVerify(b, qr1);
   assert.deepEqual(await steps(b), ['pass', 'pass', 'pass', 'pass']);
+  // 가져온 패키지가 있는 기기에서 같은 시험·시험일로 발급하면 알아볼 수 있는 이유와 함께 거절된다.
+  await b.click('#tab-applicant');
+  await b.click('#again').catch(() => {});
+  for (const d of '123456') await b.click(`#keypad .key:text-is("${d}")`);
+  await b.waitForSelector('.step[data-step="2"]:not([hidden])');
+  await b.click('.check .box');
+  await b.click('#issueBtn');
+  await b.waitForSelector('#issueError:not([hidden])');
+  assert.ok((await b.textContent('#issueError')).includes('가져온'));
+  assert.ok(!(await b.textContent('#issueError')).includes('usages'));
   assert.deepEqual(errsB, []);
   await ctxB.close();
   ok('다른 기기 QR은 키 불일치로 안내, 패키지 옮기기: 틀린 해제 코드 거절, 올바른 코드로 가져온 뒤 검증 통과 (알려진 한계: 단말 간 사용 기록은 공유되지 않음)');

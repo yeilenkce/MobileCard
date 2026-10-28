@@ -86,6 +86,18 @@ const SP = globalThis.SP;
   assert.equal((await SP.svc.lookupIdentity(pkg2, rr3.payload.tokenId)).name, '김시험');
   await assert.rejects(SP.svc.importPackage('{"x":1}', ex.code), /패키지 파일이 아닙니다/);
 
+  // 6c. 가져온 패키지가 있는 기기에서 같은 시험·시험일로 새로 발급하면 이유를 알려 주고 거절한다
+  await assert.rejects(SP.svc.issue({ examId: 'DEMO-A', examDate: tomorrow, identity: { name: 'z', birth: '2000-01-01', photo: '' } }), /가져온/);
+  // 6d. 이 기기가 직접 만든 패키지는 확인 없이 바뀌지 않는다
+  const own = await SP.svc.issue({ examId: 'DEMO-B', examDate: tomorrow, identity: { name: '내것', birth: '2000-01-01', photo: '' } });
+  const exB = await SP.svc.exportPackage(SP.svc.pkgId('DEMO-B', tomorrow));
+  await assert.rejects(SP.svc.importPackage(exB.json, exB.code), /취소/);
+  await assert.rejects(SP.svc.importPackage(exB.json, exB.code, { confirmReplace: async () => false }), /취소/);
+  assert.equal((await SP.db.get('packages', SP.svc.pkgId('DEMO-B', tomorrow))).imported, undefined, '거절하면 그대로');
+  const okB = await SP.svc.importPackage(exB.json, exB.code, { confirmReplace: async (i) => i.count === 1 });
+  assert.equal(okB.count, 1);
+  assert.equal((await SP.db.get('packages', SP.svc.pkgId('DEMO-B', tomorrow))).imported, true);
+
   // 7. 파기
   const w = await SP.svc.wipePackages();
   console.log('파기', JSON.stringify(w));

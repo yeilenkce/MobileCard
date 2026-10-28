@@ -456,7 +456,12 @@
     if (!file) { setMsg($('#xferMsg'), '패키지 파일을 선택하세요.', 'bad'); return; }
     if (!code.trim()) { setMsg($('#xferMsg'), '해제 코드를 입력하세요.', 'bad'); return; }
     try {
-      var r = await SP.svc.importPackage(await file.text(), code);
+      var r = await SP.svc.importPackage(await file.text(), code, {
+        confirmReplace: function (info) {
+          return ui.confirm('이 기기의 패키지를 바꿀까요?',
+            '이 기기는 같은 시험·시험일의 패키지(응시자 ' + info.count + '명)를 직접 만들어 둔 상태입니다. 가져오면 가져온 패키지로 바뀌고, 이 기기에서 발급한 시험패스는 이 기기에서 검증할 수 없게 됩니다.', '가져오기');
+        }
+      });
       $('#xferFile').value = '';
       $('#xferIn').value = '';
       await view.refresh();
