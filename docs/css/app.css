@@ -412,7 +412,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 
 .sup-result > * + * { margin-top: var(--s-4); }
 .idle { color: var(--ink-2); }
-.idle .ghost { margin-top: var(--s-4); opacity: 0.55; }
+.idle .ghost { margin-top: var(--s-4); }
+.ghost .s-t { color: var(--ink-2); }
 
 .steps { border-bottom: 1px solid var(--line); }
 .step-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: var(--s-3); align-items: start; padding: 16px 0; border-top: 1px solid var(--line); }

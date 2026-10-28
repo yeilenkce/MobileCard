@@ -47,7 +47,8 @@
     var st = await SP.db.init();
     if (!st.persistent) {
       var note = ui.el('div', { class: 'demo-band warn', role: 'note', text: '이 브라우저는 저장소를 막고 있어 새로고침하면 발급한 시험패스와 검증 패키지가 사라집니다.' });
-      g.document.body.insertBefore(note, ui.$('.skip').nextSibling);
+      var head = ui.$('.site-head');
+      head.insertBefore(note, head.firstChild);
     }
     SP.applicant.init();
     SP.ticket.init();
@@ -72,7 +73,8 @@
   g.document.addEventListener('DOMContentLoaded', function () {
     app.init().catch(function (e) {
       var n = ui.el('div', { class: 'demo-band warn', role: 'alert', text: '시작하지 못했습니다: ' + e.message });
-      g.document.body.insertBefore(n, g.document.body.firstChild);
+      var head = ui.$('.site-head');
+      head.insertBefore(n, head.firstChild);
       if (g.console) g.console.error(e);
     });
   });

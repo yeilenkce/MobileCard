@@ -96,10 +96,11 @@ node tests/logic.test.cjs                              # 서명, 검증, 암호�
 node tests/e2e.cjs                                     # file:// 로 연 화면에서 전체 흐름 (13개 항목)
 node tests/e2e.cjs http://localhost:8000/index.html    # 서버로 연 화면
 node tests/camera.cjs                                  # 가짜 카메라 영상으로 스캔, 시작·끄기 연타, 다음 스캔 때 카메라 유지 확인
+npm install --no-save axe-core && node tests/a11y.cjs  # 접근성 자동 검사(세 화면, 라이트와 다크)
 node tools/screenshots.cjs screenshots/desktop 1100    # 스크린샷 다시 찍기 (모바일은 400, 다크는 세 번째 인자 dark)
 ```
 
-마지막으로 실행한 결과는 logic 전체 통과, e2e 13개 항목 통과(file://, http 모두), camera 통과입니다. e2e 는 이전 버전 시험패스가 남아 있어도 시작되는지, 오프라인 검증, 복제 QR 거절, 이미지 업로드, 보류, 변조, 다른 기기로 패키지 옮기기, 320에서 1920px 폭의 가로 스크롤, 5종 테스트, 측정 모드, 파기 후 0건을 확인합니다.
+마지막으로 실행한 결과는 logic 전체 통과, e2e 13개 항목 통과(file://, http 모두), camera 통과, a11y(axe-core) 위반 0건입니다. axe 는 자동으로 잡히는 항목만 검사하므로 화면낭독기나 실제 사용자 점검을 대신하지 않습니다. e2e 는 이전 버전 시험패스가 남아 있어도 시작되는지, 오프라인 검증, 복제 QR 거절, 이미지 업로드, 보류, 변조, 다른 기기로 패키지 옮기기, 320에서 1920px 폭의 가로 스크롤, 5종 테스트, 측정 모드, 파기 후 0건을 확인합니다.
 
 ## 폴더
 
