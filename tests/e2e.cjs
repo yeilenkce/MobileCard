@@ -65,6 +65,26 @@ async function nextRun(p) { if (await p.isVisible('#btnNext')) await p.click('#b
   assert.ok(inList.includes('DEMO-A') && inList.includes('A-0001'));
   ok('시험패스 발급, 수험표에 실제 QR 표시, QR 안 정보 해독');
 
+  // 1b. 이전 버전(v1)에서 발급해 저장소에 남은 시험패스가 있어도 앱이 시작되어야 한다.
+  await p.evaluate(async () => {
+    const cur = SP.ticket.current();
+    const parsed = SP.parseQR(cur.qr), bytes = new Uint8Array(parsed.payloadBytes);
+    bytes[0] = 1;
+    await SP.db.put('passes', { tokenId: 'STALEstaleSTALE1', qr: SP.packQR(bytes, parsed.sig), examId: cur.examId, examDate: cur.examDate,
+      candNo: 'A-0000', issuedAt: cur.issuedAt - 5, expiresAt: cur.expiresAt, holder: '이전버전', pubFingerprint: cur.pubFingerprint });
+  });
+  await p.reload();
+  await p.waitForSelector('html[data-ready="1"]');
+  await p.click('#tab-ticket');
+  await p.waitForSelector('#ticketStale:not([hidden])');
+  assert.ok((await p.textContent('#ticketStaleText')).includes('1개'));
+  assert.ok(await p.isVisible('#qrBox svg'), '남은 시험패스는 정상 표시');
+  assert.ok(!(await p.textContent('#passSelect')).includes('이전버전'));
+  await p.click('#staleClear');
+  await p.waitForSelector('#ticketStale', { state: 'hidden' });
+  assert.equal(await p.evaluate(() => SP.db.count('passes')), 1);
+  ok('이전 버전 시험패스가 남아 있어도 앱이 시작되고, 목록에서 빼고 안내하며, 지우기로 정리됨');
+
   // 2. 감독관: 붙여넣기 검증. 브라우저를 오프라인으로 바꾸고, 이 시점부터 네트워크 요청을 센다.
   await ctx.setOffline(true);
   await p.click('#tab-supervisor');

@@ -93,13 +93,13 @@ Node 22에서 확인했고, 브라우저 테스트는 Playwright(Chromium)와 ff
 
 ```
 node tests/logic.test.cjs                              # 서명, 검증, 암호화, 패키지 옮기기, 파기 (브라우저 없음)
-node tests/e2e.cjs                                     # file:// 로 연 화면에서 전체 흐름 (12개 항목)
+node tests/e2e.cjs                                     # file:// 로 연 화면에서 전체 흐름 (13개 항목)
 node tests/e2e.cjs http://localhost:8000/index.html    # 서버로 연 화면
 node tests/camera.cjs                                  # 가짜 카메라 영상으로 스캔, 시작·끄기 연타, 다음 스캔 때 카메라 유지 확인
 node tools/screenshots.cjs screenshots/desktop 1100    # 스크린샷 다시 찍기 (모바일은 400, 다크는 세 번째 인자 dark)
 ```
 
-마지막으로 실행한 결과는 logic 전체 통과, e2e 12개 항목 통과(file://, http 모두), camera 통과입니다. e2e 는 오프라인 검증, 복제 QR 거절, 이미지 업로드, 보류, 변조, 다른 기기로 패키지 옮기기, 320에서 1920px 폭의 가로 스크롤, 5종 테스트, 측정 모드, 파기 후 0건을 확인합니다.
+마지막으로 실행한 결과는 logic 전체 통과, e2e 13개 항목 통과(file://, http 모두), camera 통과입니다. e2e 는 이전 버전 시험패스가 남아 있어도 시작되는지, 오프라인 검증, 복제 QR 거절, 이미지 업로드, 보류, 변조, 다른 기기로 패키지 옮기기, 320에서 1920px 폭의 가로 스크롤, 5종 테스트, 측정 모드, 파기 후 0건을 확인합니다.
 
 ## 폴더
 

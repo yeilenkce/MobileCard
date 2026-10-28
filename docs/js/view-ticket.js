@@ -46,8 +46,15 @@
     $('#qrBox').setAttribute('aria-label', '수험표에 인쇄된 시험패스 QR, ' + p.qr.length + '자, 모듈 ' + $('#qrBox svg').dataset.modules + '칸');
   }
 
+  // 이전 형식(버전)으로 발급한 시험패스는 지금 QR 형식과 달라 쓸 수 없으므로 목록에서 빼고 알려 준다.
+  var stale = [];
+
   view.refresh = async function (preferId) {
-    passes = await SP.svc.listPasses();
+    var all = await SP.svc.listPasses();
+    passes = all.filter(function (p) { return SP.isCurrentQR(p.qr); });
+    stale = all.filter(function (p) { return !SP.isCurrentQR(p.qr); });
+    $('#ticketStale').hidden = !stale.length;
+    if (stale.length) $('#ticketStaleText').textContent = '이전 버전에서 발급한 시험패스 ' + stale.length + '개는 QR 형식이 달라 더 이상 쓸 수 없어 목록에서 뺐습니다. 응시자 앱에서 새로 발급하세요.';
     var empty = !passes.length;
     $('#ticketEmpty').hidden = !empty;
     $('#ticketBody').hidden = empty;
@@ -82,6 +89,10 @@
       if (p) render(p);
     });
     $('#emptyGo').addEventListener('click', function () { SP.app.go('applicant'); });
+    $('#staleClear').addEventListener('click', async function () {
+      for (var i = 0; i < stale.length; i++) await SP.db.del('passes', stale[i].tokenId);
+      await view.refresh();
+    });
     $('#copyQR').addEventListener('click', async function () {
       if (!current) return;
       ui.toast((await copyText(current.qr)) ? 'QR 문자열을 복사했습니다' : '복사하지 못했습니다. 직접 선택해 주세요');

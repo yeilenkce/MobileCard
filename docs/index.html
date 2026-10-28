@@ -206,6 +206,11 @@
 
   <!-- ============ 2. 수험표 ============ -->
   <section id="view-ticket" class="view" role="tabpanel" aria-labelledby="tab-ticket" hidden>
+    <div id="ticketStale" class="msg msg-warn stale" role="status" hidden>
+      <p id="ticketStaleText"></p>
+      <button id="staleClear" class="btn btn-quiet" type="button">이전 시험패스 지우기</button>
+    </div>
+
     <div id="ticketEmpty" class="empty" hidden>
       <h2>발급된 시험패스가 없습니다</h2>
       <p class="lead">응시자 앱에서 시험패스를 발급하면 수험표에 QR이 인쇄된 모습을 볼 수 있습니다.</p>
