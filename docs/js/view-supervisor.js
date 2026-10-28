@@ -102,36 +102,61 @@
     setMsg($('#inputMsg'), '');
   }
 
+  // 카메라를 완전히 끈다(스트림 해제). 시작하는 중이면 취소한다.
   function stopCamera() {
     if (S.camera) S.camera.stop();
     $('#camStart').hidden = false;
+    $('#camStart').disabled = false;
+    $('#camStart').textContent = '스캔 시작';
     $('#camStop').hidden = true;
-    $('#viewfinder').classList.remove('live');
+    $('#viewfinder').classList.remove('live', 'paused');
     $('#vfMsg').hidden = false;
     $('#vfMsg').textContent = '카메라가 꺼져 있습니다';
   }
 
+  // QR 을 읽은 뒤에는 스캔만 멈추고 카메라는 켜 둔다. 다음 응시자는 곧바로 이어서 스캔한다.
+  function pauseCamera() {
+    $('#viewfinder').classList.add('paused');
+    $('#vfMsg').hidden = false;
+    $('#vfMsg').textContent = '스캔을 멈췄습니다. 결과를 처리하면 이어서 스캔합니다';
+  }
+
   async function startCamera() {
-    if (S.busy || !S.pkg) return;
+    if (S.busy || !S.pkg || S.camStarting) return;
     resetRun(true);
     setMsg($('#inputMsg'), '');
     var video = $('#video');
-    if (!S.camera) S.camera = SP.scanner.camera(video, { onFound: function (text) { onQR(text, 'camera', S.run.t0); } });
+    if (!S.camera) S.camera = SP.scanner.camera(video, { onFound: function (text) { onQR(text, 'camera', S.run ? S.run.t0 : perf()); } });
     S.run = { t0: perf(), input: 'camera' };
-    $('#vfMsg').textContent = '카메라를 켜는 중입니다';
+    S.camStarting = true;
+    var startBtn = $('#camStart');
+    startBtn.disabled = true;
+    startBtn.textContent = '카메라 켜는 중…';
+    $('#vfMsg').hidden = false;
+    $('#vfMsg').textContent = '카메라를 켜는 중입니다. 처음에는 권한 허용이 필요합니다';
     try {
-      await S.camera.start();
-      $('#viewfinder').classList.add('live');
-      $('#vfMsg').hidden = true;
-      $('#camStart').hidden = true;
-      $('#camStop').hidden = false;
+      var started = await S.camera.start();
+      if (started) {
+        $('#viewfinder').classList.remove('paused');
+        $('#viewfinder').classList.add('live');
+        $('#vfMsg').hidden = true;
+        startBtn.hidden = true;
+        $('#camStop').hidden = false;
+      } else {
+        S.run = null; // 시작하는 동안 끄거나 화면을 떠나 취소됨
+      }
     } catch (e) {
       stopCamera();
       var why = e && e.name === 'NotAllowedError' ? '카메라 권한이 거부되었습니다. 브라우저 주소창의 권한 설정에서 허용하거나, 이미지·붙여넣기 방식을 쓰세요.'
         : e && e.name === 'NotFoundError' ? '사용할 수 있는 카메라가 없습니다. 이미지·붙여넣기 방식을 쓰세요.'
+        : e && e.name === 'NotReadableError' ? '카메라를 다른 앱이 쓰고 있습니다. 그 앱을 닫고 다시 시도하세요.'
         : (e && e.message) || '카메라를 켜지 못했습니다.';
       setMsg($('#inputMsg'), why, 'bad');
       S.run = null;
+    } finally {
+      S.camStarting = false;
+      startBtn.disabled = false;
+      startBtn.textContent = '스캔 시작';
     }
   }
 
@@ -165,6 +190,7 @@
     $('#identity').hidden = true;
     $('#decide').hidden = true;
     $('#after').hidden = true;
+    $('#btnToTransfer').hidden = true;
     ui.clear($('#steps'));
     $('#resultIdle').classList.remove('hush');
     paintNet(null);
@@ -211,7 +237,7 @@
     var netBase = netCount();
     var run = { t0: t0, input: input, netBase: netBase, tQR: perf(), decided: false };
     S.run = run;
-    stopCamera();
+    if (input === 'camera') pauseCamera(); else stopCamera();
 
     $('#resultIdle').hidden = true;
     $('#resultLive').hidden = false;
@@ -237,9 +263,11 @@
 
     if (!res.ok) {
       var step = res.steps[res.failedAt - 1];
-      var replay = step.code === 'REPLAY';
-      verdict(replay ? 'warn' : 'bad', replay ? '같은 QR을 다시 스캔했습니다' : '거절: ' + res.failedAt + '단계(' + step.title + ')에서 중단',
+      var replay = step.code === 'REPLAY', foreign = step.code === 'KEY_MISMATCH';
+      if (foreign) verdict('warn', '다른 기기에서 발급한 QR입니다', '이 단말의 패키지와 발급기관 키가 달라 서명을 확인할 수 없습니다. 발급한 기기에서 시험장 패키지를 내보내 이 단말에 가져오면 검증할 수 있습니다.');
+      else verdict(replay ? 'warn' : 'bad', replay ? '같은 QR을 다시 스캔했습니다' : '거절: ' + res.failedAt + '단계(' + step.title + ')에서 중단',
         replay ? '복제된 수험표일 수 있습니다. 입실시키지 말고 감독관 확인을 받으세요.' : '입실을 보류하고 감독관 확인을 받으세요. 이름과 사진은 표시하지 않습니다.');
+      $('#btnToTransfer').hidden = !foreign;
       await SP.svc.addHistory(S.pkg, { result: 'reject', candNo: res.payload ? res.payload.candNo : '', tokenId: res.payload ? res.payload.tokenId : '', failedAt: res.failedAt, code: step.code });
       await paintHistory();
       paintNet(netBase);
@@ -308,7 +336,14 @@
 
   function next() {
     resetRun();
-    if (S.input === 'camera') startCamera();
+    if (S.input !== 'camera') return;
+    if (S.camera && S.camera.alive()) {
+      // 카메라가 켜져 있으므로 다시 켜지 않고 이어서 스캔한다.
+      S.run = { t0: perf(), input: 'camera' };
+      $('#viewfinder').classList.remove('paused');
+      $('#vfMsg').hidden = true;
+      S.camera.resume();
+    } else startCamera();
   }
 
   /* ---------- 이력, 측정 ---------- */
@@ -469,6 +504,7 @@
       });
     });
     $('#camStart').addEventListener('click', startCamera);
+    g.document.addEventListener('visibilitychange', function () { if (g.document.hidden) { stopCamera(); S.run = null; } });
     $('#camStop').addEventListener('click', function () { stopCamera(); S.run = null; });
     $('#imgFile').addEventListener('change', function (e) { fromImage(e.target.files[0]); e.target.value = ''; });
     var drop = $('#drop');
@@ -500,6 +536,10 @@
     $('#btnPass').addEventListener('click', function () { decide('pass'); });
     $('#btnHold').addEventListener('click', function () { decide('hold'); });
     $('#btnNext').addEventListener('click', next);
+    $('#btnToTransfer').addEventListener('click', function () {
+      $('#transfer').scrollIntoView({ behavior: ui.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+      $('#xferFile').focus({ preventScroll: true });
+    });
 
     try { $('#metricOn').checked = g.localStorage.getItem('sp-metric') === '1'; } catch (e) { /* 무시 */ }
     $('#metricOn').addEventListener('change', function (e) {

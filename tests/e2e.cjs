@@ -139,6 +139,16 @@ async function nextRun(p) { if (await p.isVisible('#btnNext')) await p.click('#b
   await b.goto(URL + '#supervisor');
   await b.waitForSelector('html[data-ready="1"]');
   assert.ok(await b.isVisible('#supEmpty'));
+  // 다른 기기에서 자기 키로 패키지를 만들어 둔 상태에서 첫 기기의 QR을 검증하면, 변조가 아니라 키 불일치로 안내한다.
+  await issue(b, 'B측');
+  await b.click('#tab-supervisor');
+  await b.waitForSelector('#supBody:not([hidden])');
+  await pasteVerify(b, qr4);
+  assert.deepEqual(await steps(b), ['fail', 'skip', 'skip', 'skip']);
+  assert.ok((await b.textContent('#steps')).includes('다른 발급기관 키'));
+  assert.ok(!(await b.textContent('#steps')).includes('내용이 바뀌었'));
+  assert.ok(await b.isVisible('#btnToTransfer'));
+  await b.click('#btnNext');
   await b.setInputFiles('#xferFile', pkgFile);
   await b.fill('#xferIn', 'x'.repeat(43));
   await b.click('#xferImport');
@@ -157,7 +167,7 @@ async function nextRun(p) { if (await p.isVisible('#btnNext')) await p.click('#b
   assert.deepEqual(await steps(b), ['pass', 'pass', 'pass', 'pass']);
   assert.deepEqual(errsB, []);
   await ctxB.close();
-  ok('다른 기기로 패키지 옮기기: 틀린 해제 코드 거절, 올바른 코드로 가져온 뒤 검증 통과 (알려진 한계: 단말 간 사용 기록은 공유되지 않음)');
+  ok('다른 기기 QR은 키 불일치로 안내, 패키지 옮기기: 틀린 해제 코드 거절, 올바른 코드로 가져온 뒤 검증 통과 (알려진 한계: 단말 간 사용 기록은 공유되지 않음)');
 
   // 6c. 화면 폭별 가로 넘침 확인
   for (const w of [320, 360, 400, 768, 1920]) {

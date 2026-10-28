@@ -58,7 +58,7 @@
     var issuedAt = Math.floor(Date.now() / 1000);
     var expiresAt = Math.floor(SP.time.at(opts.examDate, parseInt(exam.until.slice(0, 2), 10), parseInt(exam.until.slice(3), 10)) / 1000);
     var payload = {
-      version: SP.VERSION, examId: exam.id, examDate: opts.examDate, candNo: candNo,
+      version: SP.VERSION, kid: await SP.keyId(issuer.publicRaw), examId: exam.id, examDate: opts.examDate, candNo: candNo,
       tokenId: SP.randomTokenId(), issuedAt: issuedAt, expiresAt: expiresAt
     };
     var qr = await SP.signToken(issuer.privateKey, payload);
@@ -91,12 +91,12 @@
   svc.openPackage = async function (pkgId) {
     var meta = await SP.db.get('packages', pkgId);
     if (!meta) return null;
-    return { meta: meta, pub: await SP.importPublic(meta.issuerPub), fingerprint: await SP.fingerprint(meta.issuerPub) };
+    return { meta: meta, pub: await SP.importPublic(meta.issuerPub), kid: await SP.keyId(meta.issuerPub), fingerprint: await SP.fingerprint(meta.issuerPub) };
   };
 
   svc.ctxFor = function (pkg) {
     return {
-      pub: pkg.pub, examId: pkg.meta.examId, examDate: pkg.meta.examDate,
+      pub: pkg.pub, kid: pkg.kid, examId: pkg.meta.examId, examDate: pkg.meta.examDate,
       now: SP.clock.now,
       isUsed: function (tokenId) { return SP.db.get('used', tokenId); }
     };
@@ -225,13 +225,14 @@
     var now = SP.clock.now();
     var examDate = SP.time.ymd(now);
     var used = new Map();
+    var kid = await SP.keyId(key.publicRaw);
     var ctx = {
-      pub: key.publicKey, examId: 'DEMO-A', examDate: examDate, now: function () { return now; },
+      pub: key.publicKey, kid: kid, examId: 'DEMO-A', examDate: examDate, now: function () { return now; },
       isUsed: async function (id) { return used.get(id) || null; }
     };
     function payload(over) {
       var p = {
-        version: SP.VERSION, examId: 'DEMO-A', examDate: examDate, candNo: 'T-0001', tokenId: SP.randomTokenId(),
+        version: SP.VERSION, kid: kid, examId: 'DEMO-A', examDate: examDate, candNo: 'T-0001', tokenId: SP.randomTokenId(),
         issuedAt: Math.floor(now / 1000) - 3600, expiresAt: Math.floor(now / 1000) + 3600
       };
       Object.keys(over || {}).forEach(function (k) { p[k] = over[k]; });

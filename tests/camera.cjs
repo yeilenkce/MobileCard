@@ -38,10 +38,30 @@ const profile = path.join(dir, 'profile');
     args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--use-file-for-fake-video-capture=' + path.join(dir, 'cam.y4m')]
   });
   p = ctx.pages()[0] || await ctx.newPage();
+  await p.addInitScript(() => {
+    window.__gum = 0;
+    const md = navigator.mediaDevices, orig = md.getUserMedia.bind(md);
+    md.getUserMedia = (...a) => { window.__gum++; return orig(...a); };
+  });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
   p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
   await p.goto(URL + '#supervisor'); await p.waitForSelector('html[data-ready="1"]'); await p.waitForSelector('#supBody:not([hidden])');
+  // 시작과 끄기를 빠르게 번갈아 눌러도 오류가 없어야 한다(play() 가 중단되었다는 메시지 등).
+  for (let i = 0; i < 8; i++) {
+    if (await p.isVisible('#camStart') && await p.isEnabled('#camStart')) await p.click('#camStart');
+    await p.waitForTimeout(20 + (i * 37) % 160);
+    if (await p.isVisible('#camStop')) await p.click('#camStop');
+  }
+  await p.waitForTimeout(400);
+  const msg = (await p.textContent('#inputMsg')) || '';
+  assert.ok(!/play\(\)|interrupted/i.test(msg), '화면에 play() 오류가 보임: ' + msg);
+  assert.deepEqual(errs, [], '연타 중 오류: ' + errs.join('\n'));
+  await p.waitForFunction(() => !document.querySelector('#camStart').hidden || !document.querySelector('#camStop').hidden);
+  if (await p.isVisible('#camStop')) await p.click('#camStop');
+  await p.waitForSelector('#camStart:not([hidden])');
+  console.log('카메라 시작·끄기 연타 8회: 오류 없음');
+
   await p.click('#camStart');
   const t0 = Date.now();
   await p.waitForSelector('#decide:not([hidden])', { timeout: 15000 });
@@ -49,6 +69,17 @@ const profile = path.join(dir, 'profile');
   assert.equal((await p.textContent('#idnName')).trim(), '김시험');
   assert.deepEqual(await p.$$eval('#steps .step-row', (r) => r.map((x) => x.dataset.state)), ['pass', 'pass', 'pass', 'pass']);
   assert.deepEqual(errs, []);
+  // 스캔 사이에는 카메라를 다시 켜지 않고 이어서 스캔한다.
+  await p.click('#btnPass');
+  await p.waitForSelector('#after:not([hidden])');
+  const gumBefore = await p.evaluate(() => window.__gum);
+  const t1 = Date.now();
+  await p.click('#btnNext');
+  await p.waitForSelector('#verdict:not([hidden])', { timeout: 5000 });
+  const again = Date.now() - t1;
+  assert.equal(await p.evaluate(() => window.__gum), gumBefore, '다음 스캔에서 getUserMedia 를 다시 부르면 안 됨');
+  assert.ok(await p.evaluate(() => !!document.querySelector('#video').srcObject));
+  console.log('다음 응시자 스캔: 카메라를 다시 켜지 않고 ' + again + 'ms 만에 다음 결과 (getUserMedia 추가 호출 0회)');
   console.log('카메라 스캔 통과: 카메라를 켠 뒤 QR 인식과 4단계 검증, 사진 표시까지 ' + ms + 'ms (가짜 카메라 장치, 이 PC 기준)');
   await ctx.close();
   fs.rmSync(dir, { recursive: true, force: true });

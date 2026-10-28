@@ -398,6 +398,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 .viewfinder.live video { opacity: 1; }
 .vf-frame { position: absolute; inset: 18% 22%; border: 3px solid var(--media-frame); border-radius: 18px; opacity: 0; transition: opacity 200ms ease; pointer-events: none; }
 .viewfinder.live .vf-frame { opacity: 1; }
+.viewfinder.paused video { opacity: 0.5; }
+.viewfinder.paused .vf-msg { background: var(--scrim); color: var(--media-ink); border-radius: var(--r-1); padding: var(--s-2) var(--s-3); }
 .vf-msg { position: relative; color: var(--media-ink); font-size: 0.9375rem; padding: 0 var(--s-4); text-align: center; }
 
 .drop { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-5) var(--s-4); border: 2px dashed var(--line-strong); border-radius: var(--r-2); background: var(--surface); cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease; }

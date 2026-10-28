@@ -29,6 +29,7 @@
     var parsed = SP.parseQR(p.qr), d = SP.decodePayload(parsed.payloadBytes);
     var rows = [
       ['버전', String(d.version)],
+      ['발급기관 키ID', SP.fmtKid(d.kid)],
       ['시험ID', d.examId],
       ['시험일', d.examDate],
       ['수험번호', d.candNo],

@@ -42,6 +42,22 @@ const SP = globalThis.SP;
   // AAD 바인딩: 다른 토큰ID로는 복호화 안 됨
   await assert.rejects(SP.openIdentity(pkg.meta.key, pkg.meta.pkgId, pass.tokenId, entry));
 
+  // 4b. 다른 기기(다른 발급기관 키)에서 발급한 QR: 1단계에서 거절하고 키 ID 불일치를 알려 준다
+  SP.clock.setExamMorning(tomorrow);
+  const other = await SP.generateIssuerKey();
+  const foreignQR = await SP.signToken(other.privateKey, {
+    version: SP.VERSION, kid: await SP.keyId(other.publicRaw), examId: 'DEMO-A', examDate: tomorrow, candNo: 'X-0001',
+    tokenId: SP.randomTokenId(), issuedAt: Math.floor(Date.now() / 1000) - 60, expiresAt: Math.floor(Date.now() / 1000) + 86400 * 3
+  });
+  const fr = await SP.svc.verify(foreignQR, pkg);
+  assert.equal(fr.failedAt, 1);
+  assert.equal(fr.steps[0].code, 'KEY_MISMATCH');
+  assert.ok(fr.steps[0].msg === undefined && fr.steps[0].detail.includes('다른 발급기관 키'));
+  assert.equal(fr.payload, null, '서명이 틀리면 페이로드를 신뢰하지 않음');
+  // 같은 키 ID 로 내용만 바꾸면 변조(SIG_INVALID)로 구분된다
+  const tampered = SP.tamper(pass2.qr, (p) => { p.expiresAt += 1; });
+  assert.equal((await SP.svc.verify(tampered, pkg)).steps[0].code, 'SIG_INVALID');
+
   // 5. 형식 오류/쓰레기 입력
   SP.clock.setExamMorning(tomorrow);
   for (const junk of ['', 'hello', 'SP1.abc.def', 'SP1.' + 'A'.repeat(40) + '.' + 'B'.repeat(86)]) {
